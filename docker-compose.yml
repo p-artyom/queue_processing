@@ -1,0 +1,58 @@
+version: '3.8'
+
+volumes:
+  pg_data:
+  static:
+
+services:
+  postgres:
+    image: postgres:14
+    restart: unless-stopped
+    env_file: ./tasks/.env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+  tasks:
+    build: ./tasks/
+    restart: unless-stopped
+    env_file: ./tasks/.env
+    depends_on:
+      - postgres
+    volumes:
+      - static:/tasks_static
+    ports:
+      - 8000:8000
+  creating-queue:
+    build: ./creating_queue/
+    restart: unless-stopped
+    env_file: ./creating_queue/.env
+    depends_on:
+      - postgres
+    volumes:
+      - static:/creating_queue_static
+    ports:
+      - 9000:8000
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+  celery-tasks:
+    build: ./tasks/
+    restart: unless-stopped
+    command: celery --app=tasks worker --loglevel=info -Q tasks
+    env_file: ./tasks/.env
+    volumes:
+      - static:/tasks_static
+    depends_on:
+      - postgres
+      - tasks
+      - redis
+  celery-creating-queue:
+    build: ./creating_queue/
+    restart: unless-stopped
+    command: celery --app=creating_queue worker --loglevel=info -Q creating-queue
+    env_file: ./creating_queue/.env
+    volumes:
+      - static:/creating_queue_static
+    depends_on:
+      - postgres
+      - creating-queue
+      - redis
